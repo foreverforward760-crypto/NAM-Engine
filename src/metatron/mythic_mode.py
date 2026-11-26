@@ -9,7 +9,7 @@ risk labels.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Literal
+from typing import Any, Dict, Literal, Optional
 import random
 
 
@@ -60,7 +60,7 @@ class MythicModeEngine:
     live location feeds, emergency dispatch, or risk-detection logic exist.
     """
 
-    def __init__(self, user_prefs: UserPreferences | None = None):
+    def __init__(self, user_prefs: Optional[UserPreferences] = None):
         self.user_prefs = user_prefs or UserPreferences()
         self.metrics: Dict[str, Any] = {
             "stories_played": 0,
@@ -119,7 +119,7 @@ class MythicModeEngine:
         if mode == "HEROIC":
             return (
                 f"Today, {location_name} is the next chapter of your quest. "
-                f"You’re the main character here—moving through a map that’s watching out for you."
+                f"You’re the main character here—moving through a map that invites curiosity."
             )
         if mode == "SPOOKY":
             return (
