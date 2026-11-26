@@ -1,53 +1,72 @@
 # src/metatron/mythic_mode.py
-
 """
-METATRON MYTHIC MODE
-Narrative-driven safety & discovery engine (skeleton implementation).
+METATRON MYTHIC MODE — narrative-template prototype.
+
+This module selects a narrative style at random and inserts location/context
+strings into fixed templates. It does not retrieve historical or geographic
+facts, monitor a location, calculate safety risk, or verify caller-supplied
+risk labels.
 """
 
-from dataclasses import dataclass
-from typing import Dict, Any, List
+from dataclasses import dataclass, field
+from typing import Any, Dict, Literal
 import random
+
+
+RiskLabel = Literal["LOW", "MODERATE", "HIGH", "CRITICAL"]
 
 
 @dataclass
 class UserPreferences:
     enabled: bool = True
-    modes: Dict[str, bool] = None
-    intensity: int = 3  # 1–5
+    modes: Dict[str, bool] = field(default_factory=lambda: {
+        "HISTORICAL": True,
+        "NATURE": True,
+        "CULTURAL": True,
+        "GEOGRAPHIC": True,
+        "HEROIC": False,
+        "SPOOKY": False,
+    })
+    # Reserved preference; current narrative templates do not use intensity.
+    intensity: int = 3
 
-    def __post_init__(self):
-        if self.modes is None:
-            self.modes = {
-                "HISTORICAL": True,
-                "NATURE": True,
-                "CULTURAL": True,
-                "GEOGRAPHIC": True,
-                "HEROIC": False,
-                "SPOOKY": False,
-            }
+    def __post_init__(self) -> None:
+        self.intensity = max(1, min(5, int(self.intensity)))
 
 
 @dataclass
 class SafetyAssessment:
-    risk: str  # "LOW", "MODERATE", "HIGH", "CRITICAL"
-    details: Dict[str, Any]
+    """
+    A risk label supplied by the caller, not computed by this module.
+
+    The engine does not independently assess, sense, or verify location safety.
+    """
+    risk: RiskLabel
+    details: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        normalized = str(self.risk).upper()
+        if normalized not in {"LOW", "MODERATE", "HIGH", "CRITICAL"}:
+            raise ValueError("risk must be LOW, MODERATE, HIGH, or CRITICAL")
+        self.risk = normalized  # type: ignore[assignment]
 
 
 class MythicModeEngine:
     """
-    High-level skeleton of the Mythic Mode engine.
-    Does NOT depend on any external services yet.
+    Small narrative-template skeleton.
+
+    Mode selection is random. Safety wording is based solely on the
+    SafetyAssessment label provided by the caller. No external services,
+    live location feeds, emergency dispatch, or risk-detection logic exist.
     """
 
     def __init__(self, user_prefs: UserPreferences | None = None):
         self.user_prefs = user_prefs or UserPreferences()
         self.metrics: Dict[str, Any] = {
             "stories_played": 0,
-            "safety_interrupts": 0,
+            # Counts caller-supplied HIGH/CRITICAL labels, not detected events.
+            "caller_flagged_safety_labels": 0,
         }
-
-    # ---- Public API ----------------------------------------------------- #
 
     def generate_location_narrative(
         self,
@@ -55,9 +74,7 @@ class MythicModeEngine:
         context: Dict[str, Any],
         safety: SafetyAssessment,
     ) -> str:
-        """
-        Main entry point: returns a single narrative string for a location.
-        """
+        """Return a templated narrative for a location and supplied context."""
         if not self.user_prefs.enabled:
             return "Mythic Mode is currently disabled."
 
@@ -68,10 +85,8 @@ class MythicModeEngine:
         self.metrics["stories_played"] += 1
         return story_with_safety
 
-    # ---- Internals ------------------------------------------------------ #
-
     def _select_mode(self) -> str:
-        enabled_modes = [m for m, on in self.user_prefs.modes.items() if on]
+        enabled_modes = [mode for mode, on in self.user_prefs.modes.items() if on]
         return random.choice(enabled_modes) if enabled_modes else "HISTORICAL"
 
     def _generate_base_story(
@@ -118,31 +133,34 @@ class MythicModeEngine:
         risk = safety.risk.upper()
 
         if risk == "LOW":
-            return story + " This area is generally considered low risk—stay aware, but enjoy your walk."
+            return (
+                story
+                + " The caller supplied a LOW risk label. This module does not verify "
+                "current area safety; remain aware of your surroundings."
+            )
 
         if risk == "MODERATE":
             return (
                 story
-                + " Heads up: this area has some moderate risk. Stick to main paths, "
-                "stay aware of your surroundings, and trust your instincts."
+                + " The caller supplied a MODERATE risk label. This module cannot verify "
+                "current conditions; consult reliable local information."
             )
 
         if risk == "HIGH":
-            self.metrics["safety_interrupts"] += 1
+            self.metrics["caller_flagged_safety_labels"] += 1
             return (
-                "[SAFETY PRIORITY]\n"
-                "This area has a high risk rating. Stay in well-lit, populated spaces, "
-                "avoid shortcuts, and consider changing routes.\n\n"
+                "[CALLER-SUPPLIED HIGH RISK LABEL]\n"
+                "This module cannot verify the rating or current conditions. Consider "
+                "reliable local safety information and established travel precautions.\n\n"
                 + story
             )
 
         if risk == "CRITICAL":
-            self.metrics["safety_interrupts"] += 1
+            self.metrics["caller_flagged_safety_labels"] += 1
             return (
-                "[EMERGENCY]\n"
-                "Immediate danger detected. Do not continue forward. Turn back, move toward a busy, well-lit area, "
-                "and contact help if needed."
+                "[CALLER-SUPPLIED CRITICAL RISK LABEL]\n"
+                "This module cannot detect or verify an emergency. If you believe you are "
+                "in immediate danger, move to safety and contact local emergency services."
             )
 
         return story
-
